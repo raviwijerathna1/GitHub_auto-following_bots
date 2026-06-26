@@ -1,0 +1,20 @@
+services:
+  - type: cron
+    name: github-follow-bot
+    runtime: python
+    schedule: "0 9,15,21 * * *"  # දිනකට 3 වතාවක් run වෙනවා
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: GITHUB_TOKEN
+        sync: false          # Render dashboard එකෙන් manually දාන්න
+      - key: TARGET_USERNAME
+        value: torvalds
+      - key: DAILY_LIMIT
+        value: "300"
+      - key: FOLLOW_LIMIT
+        value: "100"         # එක් run එකට 100 ක් (දිනකට 3x = 300)
+      - key: MIN_DELAY
+        value: "10"
+      - key: MAX_DELAY
+        value: "45"
