@@ -1,96 +1,70 @@
-# GitHub Follow Bot 🤖
+# GitHub Auto Following Bot
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue)
-![GitHub API](https://img.shields.io/badge/GitHub-API%20v3-black)
-![License](https://img.shields.io/badge/License-MIT-green)
+Automatically follows GitHub users using GitHub Actions.
+
+## Features
+- Automated following via GitHub Actions
+- Daily follow limits
+- Rate limit handling
+- Random delays to avoid detection
+- Stats persistence via cache
+
+## Setup
+
+### 1. Add Secret
+Go to `Settings > Secrets and variables > Actions`
+
+| Secret | Value |
+|--------|-------|
+| `FOLLOW_BOT_TOKEN` | Your GitHub PAT token |
+
+### 2. Add Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TARGET_USERNAME` | - | Target user to follow their followers |
+| `DAILY_LIMIT` | 300 | Max follows per day |
+| `FOLLOW_LIMIT` | 100 | Max follows per run |
+| `MIN_DELAY` | 10 | Min delay between follows (seconds) |
+| `MAX_DELAY` | 45 | Max delay between follows (seconds) |
+
+### 3. Generate Token
+GitHub > Settings > Developer settings >
+Personal access tokens > Tokens (classic) >
+Generate new token
+
+Scopes: user:follow
+
+text
+
+
+### 4. Run
+Actions > GitHub Follow Bot > Run workflow
+
+text
+
+
+## Schedule
+Runs automatically 3 times per day:
+- 09:00 IST
+- 15:00 IST  
+- 21:00 IST
 
 ## ⚠️ Disclaimer
-> මේ project එක **educational purposes** සඳහා පමණි.
-> GitHub Terms of Service violation වෙන්න පුළුවන්.
-> Use කරන්නේ ඔයාගේම වගකීමෙන්.
+This bot is for educational purposes only.
+Use responsibly and within GitHub Terms of Service.
+⚠️ Important Warning:
+text
 
-## 📖 Description
-GitHub users automatically follow කරන Python bot එකක්.
-Target user කෙනෙකුගේ followers list එකෙන් users follow කරනවා.
+දැන් bot run වෙනවා - හොඳයි ✅
 
-## ✨ Features
-- ✅ Target user ගේ followers follow කරනවා
-- ✅ Rate limit protection
-- ✅ Follow success/fail tracking
-- ✅ Custom follow limit
+නමුත් දැනගන්න:
+GitHub ToS Section 2:
+"No automated following/unfollowing"
 
-## 📋 Requirements
-- Python 3.8+
-- GitHub Personal Access Token
+Account suspend වෙන්න පුළුවන්!
+Limits අඩුවෙන් තියාගන්න සේෆ්:
 
-## 🛠️ Installation
-
-### 1. Clone කරන්න
-```bash
-git clone https://github.com/yourusername/github-follow-bot
-cd github-follow-bot
-```
-
-### 2. Dependencies Install කරන්න
-```bash
-pip install requests
-```
-
-### 3. GitHub Token හදන්න
-```
-GitHub → Settings → Developer Settings
-→ Personal Access Tokens → Tokens (classic)
-→ Generate New Token
-→ "user:follow" permission select කරන්න
-→ Token copy කරන්න
-```
-
-## 💻 Usage
-
-```python
-from bot import GitHubFollowBot
-
-# Bot initialize කරන්න
-bot = GitHubFollowBot('your_github_token_here')
-
-# Auto follow කරන්න
-bot.auto_follow('target_username', limit=10)
-```
-
-## 📁 Project Structure
-```
-github-follow-bot/
-│
-├── bot.py          # Main bot code
-├── README.md       # Documentation
-└── requirements.txt
-```
-
-## 📊 Output Example
-```
-✅ Followed: user1
-✅ Followed: user2
-❌ Failed: user3
-✅ Followed: user4
-
-📊 Total followed: 3
-```
-
-## ⚡ Rate Limits
-| Type | Limit |
-|------|-------|
-| API Requests | 5000/hour |
-| Sleep between follows | 2 seconds |
-
-## 🤝 Contributing
-Pull requests welcome!
-
-1. Fork කරන්න
-2. Feature branch හදන්න (`git checkout -b feature/amazing`)
-3. Commit කරන්න (`git commit -m 'Add amazing feature'`)
-4. Push කරන්න (`git push origin feature/amazing`)
-5. Pull Request දාන්න
-
-## 📄 License
-MIT License - [LICENSE](LICENSE) file
-
+FOLLOW_LIMIT = 50  (100 වෙනුවට)
+MIN_DELAY    = 30  (10 වෙනුවට)
+MAX_DELAY    = 60  (45 වෙනුවට)
