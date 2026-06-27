@@ -2,66 +2,62 @@ name: GitHub Follow Bot
 
 on:
   schedule:
-    # Bug #8 Fix - UTC times → Lanka (IST = UTC+5:30)
-    # 09:00 IST = 03:30 UTC
-    # 15:00 IST = 09:30 UTC
-    # 21:00 IST = 15:30 UTC
-    - cron: '30 3 * * *'
-    - cron: '30 9 * * *'
-    - cron: '30 15 * * *'
-
-  # Manual trigger (testing සඳහා)
+    - cron: '30 3 * * *'   # 09:00 IST
+    - cron: '30 9 * * *'   # 15:00 IST
+    - cron: '30 15 * * *'  # 21:00 IST
   workflow_dispatch:
-    inputs:
-      follow_limit:
-        description: 'Follow limit for this run'
-        required: false
-        default: '100'
 
 jobs:
   follow-bot:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write   # Cache write සඳහා
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # Bug #6 Fix - Stats persist කිරීම GitHub Actions Cache වලින්
-      - name: Restore bot stats cache
+      - name: Restore Stats Cache
         uses: actions/cache@v4
         with:
           path: bot_stats.json
-          # Date-based cache key
-          # දිනකට වරක් expire → Daily reset automatically
           key: bot-stats-${{ github.run_id }}
           restore-keys: |
             bot-stats-
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run follow bot
+      - name: Debug Variables
+        run: |
+          echo "TARGET: $TARGET_USERNAME"
+          echo "DAILY: $DAILY_LIMIT"
+          echo "FOLLOW: $FOLLOW_LIMIT"
+          echo "MIN: $MIN_DELAY"
+          echo "MAX: $MAX_DELAY"
+        env:
+          TARGET_USERNAME: ${{ vars.TARGET_USERNAME }}
+          DAILY_LIMIT: ${{ vars.DAILY_LIMIT }}
+          FOLLOW_LIMIT: ${{ vars.FOLLOW_LIMIT }}
+          MIN_DELAY: ${{ vars.MIN_DELAY }}
+          MAX_DELAY: ${{ vars.MAX_DELAY }}
+
+      - name: Run Bot
         env:
           GITHUB_TOKEN: ${{ secrets.FOLLOW_BOT_TOKEN }}
-          TARGET_USERNAME: ${{ vars.TARGET_USERNAME || 'torvalds' }}
-          DAILY_LIMIT: ${{ vars.DAILY_LIMIT || '300' }}
-          # Manual trigger limit override
-          FOLLOW_LIMIT: ${{ github.event.inputs.follow_limit || vars.FOLLOW_LIMIT || '100' }}
-          MIN_DELAY: ${{ vars.MIN_DELAY || '10' }}
-          MAX_DELAY: ${{ vars.MAX_DELAY || '45' }}
+          TARGET_USERNAME: ${{ vars.TARGET_USERNAME }}
+          DAILY_LIMIT: ${{ vars.DAILY_LIMIT }}
+          FOLLOW_LIMIT: ${{ vars.FOLLOW_LIMIT }}
+          MIN_DELAY: ${{ vars.MIN_DELAY }}
+          MAX_DELAY: ${{ vars.MAX_DELAY }}
         run: python main.py
 
-      # Bug #6 Fix - Stats save කිරීම next run සඳහා
-      - name: Save bot stats cache
-        if: always()   # Error වුනත් save කිරීම
+      - name: Save Stats Cache
+        if: always()
         uses: actions/cache@v4
         with:
           path: bot_stats.json
