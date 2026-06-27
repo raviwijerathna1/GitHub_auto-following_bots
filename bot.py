@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 class BotConfig:
     """Bot සඳහා configuration settings"""
     daily_follow_limit: int = 300
-    follow_limit: int = 100        # Bug #12 Fix - නව field එක
-    min_delay: int = 10
-    max_delay: int = 45
+    follow_limit: int = 50
+    min_delay: int = 30
+    max_delay: int = 60
     rate_limit_threshold: int = 50
-    max_pages: int = 10
+    max_pages: int = 40        # Fix: 10 → 40
     per_page: int = 100
 
 
@@ -37,8 +37,6 @@ class BotStats:
     last_run_date: str = field(
         default_factory=lambda: date.today().isoformat()
     )
-    # Bug #5 Fix - session_start BotStats එකෙන් ඉවත් කළා
-    # Stats load කරනකොට override වෙන නිසා
 
 
 class RateLimitError(Exception):
@@ -47,16 +45,6 @@ class RateLimitError(Exception):
 
 
 class GitHubFollowBot:
-    """
-    GitHub Follow Bot
-    Bug #1  - check_already_following fixed
-    Bug #2  - PUT rate limit handling added
-    Bug #3  - Pagination limit logic fixed
-    Bug #4  - Rate limit dead code fixed
-    Bug #5  - session_start removed from stats
-    Bug #6  - GitHub Actions Cache stats persist
-    Bug #7  - Controlled follows with proper limits
-    """
 
     STATS_FILE = "bot_stats.json"
 
@@ -73,9 +61,7 @@ class GitHubFollowBot:
             "User-Agent": "GitHub-Follow-Bot/1.0"
         }
 
-        # Bug #5 Fix - session_start stats එකෙන් වෙනම තියෙනවා
         self.session_start = datetime.now().isoformat()
-
         self.stats = self._load_stats()
         self._check_daily_reset()
 
@@ -90,10 +76,8 @@ class GitHubFollowBot:
                 with open(self.STATS_FILE, "r") as f:
                     data = json.load(f)
 
-                    # Bug #5 Fix - session_start key තිබුනොත් remove කිරීම
                     data.pop("session_start", None)
 
-                    # Valid keys පමණක් BotStats වලට pass කිරීම
                     valid_keys = BotStats.__dataclass_fields__.keys()
                     filtered = {
                         k: v for k, v in data.items()
@@ -125,7 +109,6 @@ class GitHubFollowBot:
             )
             self.stats.followed_today = 0
             self.stats.failed_today = 0
-            # Bug #7 Fix - total_requests ද reset කිරීම
             self.stats.total_requests = 0
             self.stats.last_run_date = today
             self._save_stats()
@@ -135,17 +118,7 @@ class GitHubFollowBot:
     # -------------------------------------------------------------------------
 
     def _handle_rate_limit(self, response: requests.Response) -> None:
-        """
-        Bug #4 Fix - Rate limit logic නිවැරදි කිරීම
-        
-        Before:
-            remaining < 50 → sleep
-            remaining <= 1 → raise  ← dead code (never reached)
-        
-        After:
-            remaining <= 1  → raise first
-            remaining < 50  → sleep (warning)
-        """
+        """Rate limit handle කිරීම"""
         remaining = int(
             response.headers.get("X-RateLimit-Remaining", 100)
         )
@@ -155,17 +128,16 @@ class GitHubFollowBot:
 
         logger.debug(f"Rate limit remaining: {remaining}")
 
-        # Bug #4 Fix - Hard limit check FIRST
+        # Hard limit check FIRST
         if remaining <= 1:
             raise RateLimitError(
                 f"Rate limit exhausted. "
                 f"Resets at: {datetime.fromtimestamp(reset_timestamp)}"
             )
 
-        # Warning threshold - sleep
+        # Warning threshold
         if remaining < self.config.rate_limit_threshold:
             wait_seconds = max(0, reset_timestamp - time.time())
-
             logger.warning(
                 f"⚠️  Rate limit low: {remaining} requests remaining. "
                 f"Waiting {wait_seconds:.0f}s until reset."
@@ -173,7 +145,7 @@ class GitHubFollowBot:
             time.sleep(wait_seconds + 5)
 
     def _random_delay(self) -> None:
-        """Random delay - bot detection avoid කිරීම"""
+        """Random delay"""
         delay = random.randint(
             self.config.min_delay,
             self.config.max_delay
@@ -191,12 +163,7 @@ class GitHubFollowBot:
         url: str,
         **kwargs
     ) -> requests.Response:
-        """
-        Bug #2 Fix - PUT requests වලටත් rate limit check කිරීම
-        
-        Before: GET requests only
-        After:  GET + PUT requests
-        """
+        """Central request handler"""
         try:
             response = requests.request(
                 method,
@@ -208,11 +175,10 @@ class GitHubFollowBot:
 
             self.stats.total_requests += 1
 
-            # Bug #2 Fix - GET සහ PUT දෙකටම rate limit check
+            # GET සහ PUT දෙකටම rate limit check
             if method.upper() in ("GET", "PUT"):
                 self._handle_rate_limit(response)
 
-            # Status code handling
             if response.status_code == 401:
                 raise PermissionError(
                     "❌ Invalid token. Check your GITHUB_TOKEN."
@@ -251,25 +217,18 @@ class GitHubFollowBot:
     def get_followers_with_pagination(
         self,
         username: str,
-        needed: int          # Bug #3 Fix - කොපමණ අවශ්‍යද pass කිරීම
+        needed: int
     ) -> list[str]:
         """
-        Bug #3 Fix - Pagination limit නිවැරදි කිරීම
-        
-        Before: daily_follow_limit වලින් pagination stop කළා
-                already followed users count නොකළා
-                
-        After:  needed parameter - actual required count
-                Buffer 2x ගන්නවා (already following users skip කිරීමට)
+        Fix: Already following users skip කරලා
+        නව users හොයාගන්න pages continue කිරීම
         """
         all_followers = []
         page = 1
-        # Bug #3 Fix - 2x buffer (already following users account කිරීමට)
-        fetch_limit = min(needed * 2, self.config.daily_follow_limit)
 
         logger.info(
             f"📋 Fetching followers for: {username} "
-            f"(need ~{needed}, fetching up to {fetch_limit})"
+            f"(need ~{needed})"
         )
 
         while page <= self.config.max_pages:
@@ -282,6 +241,7 @@ class GitHubFollowBot:
                 response = self._make_request("GET", url)
                 followers_page = response.json()
 
+                # Empty page = අවසාන page
                 if not followers_page:
                     logger.info(
                         f"✅ All pages fetched. "
@@ -297,10 +257,10 @@ class GitHubFollowBot:
                     f"(Total so far: {len(all_followers)})"
                 )
 
-                # Bug #3 Fix - fetch_limit වලින් stop කිරීම
-                if len(all_followers) >= fetch_limit:
+                # Daily limit දක්වා fetch කිරීම
+                if len(all_followers) >= self.config.daily_follow_limit:
                     logger.info(
-                        f"✅ Fetched enough followers ({fetch_limit}). "
+                        f"✅ Fetched daily limit amount. "
                         f"Stopping pagination."
                     )
                     break
@@ -320,25 +280,10 @@ class GitHubFollowBot:
         return all_followers
 
     def check_already_following(self, username: str) -> bool:
-        """
-        Bug #1 Fix - Silent fail නිවැරදි කිරීම
-        
-        Before: ValueError catch කළා නමුත්
-                _make_request() 404 දී ValueError raise කරනවා
-                ඒ ValueError catch වෙලා False return වෙනවා
-                නමුත් network errors ද False return වෙනවා
-                = silent fail
-                
-        After:  _make_request() bypass කරලා
-                direct requests.get() call
-                404 = not following (correct)
-                204 = following (correct)
-                Other errors = assume not following + log
-        """
+        """Already following check කිරීම"""
         url = f"{self.base_url}/user/following/{username}"
 
         try:
-            # Bug #1 Fix - Direct request, _make_request() bypass
             response = requests.get(
                 url,
                 headers=self.headers,
@@ -346,19 +291,15 @@ class GitHubFollowBot:
             )
             self.stats.total_requests += 1
 
-            # 204 = following
             if response.status_code == 204:
                 return True
 
-            # 404 = not following
             if response.status_code == 404:
                 return False
 
-            # 401 = token invalid
             if response.status_code == 401:
                 raise PermissionError("Invalid token")
 
-            # Other = assume not following
             logger.debug(
                 f"Unexpected status {response.status_code} "
                 f"checking following status for {username}"
@@ -368,7 +309,6 @@ class GitHubFollowBot:
         except PermissionError:
             raise
         except Exception as e:
-            # Bug #1 Fix - Network error = log + assume not following
             logger.warning(
                 f"Could not check following status for {username}: {e}. "
                 f"Assuming not following."
@@ -376,7 +316,7 @@ class GitHubFollowBot:
             return False
 
     def follow_user(self, username: str) -> bool:
-        """User කෙනෙකුව follow කිරීම"""
+        """User follow කිරීම"""
         if self.stats.followed_today >= self.config.daily_follow_limit:
             logger.warning(
                 f"🛑 Daily follow limit reached: "
@@ -438,7 +378,7 @@ class GitHubFollowBot:
         logger.info(f"🕐 Session start: {self.session_start}")
         logger.info("=" * 50)
 
-        # Bug #3 Fix - needed count pass කිරීම
+        # Followers fetch කිරීම
         followers = self.get_followers_with_pagination(
             target_username,
             needed=effective_limit
@@ -454,21 +394,25 @@ class GitHubFollowBot:
         session_skipped = 0
 
         for username in followers:
-            # Daily limit recheck
+            # Daily limit check
             if self.stats.followed_today >= self.config.daily_follow_limit:
                 logger.warning("🛑 Daily limit reached during session.")
                 break
 
             # Session limit check
             if session_followed >= effective_limit:
-                logger.info(f"✅ Session limit reached: {effective_limit}")
+                logger.info(
+                    f"✅ Session limit reached: {effective_limit}"
+                )
                 break
 
+            # Already following check
             if self.check_already_following(username):
                 logger.info(f"⏭️  Already following: {username}")
                 session_skipped += 1
                 continue
 
+            # Follow
             if self.follow_user(username):
                 logger.info(
                     f"✅ Followed: {username} "
